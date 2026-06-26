@@ -4,44 +4,43 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.lifecycle.compose.LifecycleResumeEffect
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.chandan.beforemidnight.ui.theme.BeforeMidnightTheme
+import com.chandan.beforemidnight.ui.todo.TodoScreen
+import com.chandan.beforemidnight.ui.todo.TodoViewModel
+import com.chandan.beforemidnight.ui.todo.TodoViewModelFactory
+import androidx.compose.runtime.getValue
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        val app = application as BeforeMidnightApp
+
         setContent {
             BeforeMidnightTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                val vm: TodoViewModel = viewModel(factory = TodoViewModelFactory(app.container))
+                val uiState by vm.uiState.collectAsStateWithLifecycle()
+
+                // Fires every time the app returns to the foreground. If the calendar
+                // date has rolled over while the app was backgrounded, onResume()
+                // cancels the old Room query and opens a fresh one for the new day.
+                LifecycleResumeEffect(Unit) {
+                    vm.onResume()
+                    onPauseOrDispose { }
                 }
+
+                TodoScreen(
+                    uiState = uiState,
+                    onInputChange = vm::onInputChange,
+                    taskAdded = vm.taskAdded,
+                    onAddTask = vm::onAddTask,
+                    onToggle = vm::onToggle,
+                )
             }
         }
-    }
-}
-
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    BeforeMidnightTheme {
-        Greeting("Android")
     }
 }

@@ -17,6 +17,8 @@ import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import java.time.LocalDateTime
 import java.time.temporal.ChronoUnit
+import kotlinx.coroutines.channels.Channel
+import kotlinx.coroutines.flow.receiveAsFlow
 
 class TodoViewModel(
     private val repository: TodoRepository,
@@ -28,6 +30,10 @@ class TodoViewModel(
     val uiState: StateFlow<TodoUiState> = _uiState.asStateFlow()
 
     private var taskObserverJob: Job? = null
+
+    private val _taskAdded = Channel<Unit>(Channel.BUFFERED)
+
+    val taskAdded = _taskAdded.receiveAsFlow()
 
     init {
         observeTodayTasks()
@@ -55,6 +61,7 @@ class TodoViewModel(
             try {
                 addTaskUseCase(title)
                 _uiState.update { it.copy(inputText = "", isInputError = false) }
+                _taskAdded.send(Unit)
             } catch (e: IllegalArgumentException) {
                 _uiState.update { it.copy(isInputError = true) }
             } finally {
