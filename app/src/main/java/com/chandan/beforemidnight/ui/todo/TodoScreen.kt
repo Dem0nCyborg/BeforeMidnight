@@ -1,6 +1,7 @@
 package com.chandan.beforemidnight.ui.todo
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -51,6 +52,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardCapitalization
 import androidx.compose.ui.text.style.TextAlign
@@ -195,12 +198,17 @@ private fun TodoItem(
     onToggle: () -> Unit,
     onEdit: () -> Unit,
 ) {
+    val haptic = LocalHapticFeedback.current
     val isExpired = todo.expiresAt != null && todo.expiresAt <= nowMillis
-    val textColor = when {
+    val targetTextColor = when {
         isExpired -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
         todo.isCompleted -> MaterialTheme.colorScheme.onSurfaceVariant
         else -> MaterialTheme.colorScheme.onSurface
     }
+    val textColor by animateColorAsState(
+        targetValue = targetTextColor,
+        label = "todoItemTextColor",
+    )
 
     Row(
         modifier = Modifier
@@ -211,7 +219,10 @@ private fun TodoItem(
     ) {
         Checkbox(
             checked = todo.isCompleted,
-            onCheckedChange = if (isExpired) null else { _ -> onToggle() },
+            onCheckedChange = if (isExpired) null else { _ ->
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onToggle()
+            },
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
@@ -351,6 +362,7 @@ private fun AddTaskSheetContent(
     onAddTask: () -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = LocalHapticFeedback.current
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -384,7 +396,10 @@ private fun AddTaskSheetContent(
             keyboardActions = KeyboardActions(onDone = { onAddTask() }),
         )
         Button(
-            onClick = onAddTask,
+            onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                onAddTask()
+            },
             enabled = !isLoading,
             modifier = Modifier.fillMaxWidth(),
         ) {
@@ -403,6 +418,7 @@ private fun EditTaskSheetContent(
     onUpdateTask: (Todo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val haptic = LocalHapticFeedback.current
     var editTitle by remember(todo.id) { mutableStateOf(todo.title) }
     var hasExpiration by remember(todo.id) { mutableStateOf(todo.expiresAt != null) }
 
@@ -471,6 +487,7 @@ private fun EditTaskSheetContent(
         }
         Button(
             onClick = {
+                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
                 val expiresAt = if (hasExpiration) {
                     currentDate
                         .atTime(timePickerState.hour, timePickerState.minute)
