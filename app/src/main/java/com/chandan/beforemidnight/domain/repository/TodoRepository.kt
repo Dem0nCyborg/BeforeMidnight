@@ -9,4 +9,5 @@ interface TodoRepository {
     fun getTasksBeforeDay(date: LocalDate): Flow<List<Todo>>
     suspend fun addTask(title: String, date: LocalDate): Long
     suspend fun toggleCompletion(todo: Todo)
+    suspend fun updateTask(todo: Todo)
 }

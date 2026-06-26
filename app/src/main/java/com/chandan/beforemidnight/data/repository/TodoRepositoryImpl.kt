@@ -23,6 +23,9 @@ class TodoRepositoryImpl(private val dao: TodoDao) : TodoRepository {
 
     override suspend fun toggleCompletion(todo: Todo) =
         dao.update(todo.toEntity().copy(isCompleted = !todo.isCompleted))
+
+    override suspend fun updateTask(todo: Todo) =
+        dao.update(todo.toEntity())
 }
 
 private fun TodoEntity.toDomain(): Todo = Todo(

@@ -35,10 +35,12 @@ class MainActivity : ComponentActivity() {
 
                 TodoScreen(
                     uiState = uiState,
-                    onInputChange = vm::onInputChange,
                     taskAdded = vm.taskAdded,
+                    taskUpdated = vm.taskUpdated,
+                    onInputChange = vm::onInputChange,
                     onAddTask = vm::onAddTask,
                     onToggle = vm::onToggle,
+                    onUpdateTask = vm::onUpdateTask,
                 )
             }
         }

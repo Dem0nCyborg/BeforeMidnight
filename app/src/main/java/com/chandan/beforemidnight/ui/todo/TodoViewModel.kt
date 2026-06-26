@@ -34,8 +34,10 @@ class TodoViewModel(
     private var taskObserverJob: Job? = null
 
     private val _taskAdded = Channel<Unit>(Channel.BUFFERED)
-
     val taskAdded = _taskAdded.receiveAsFlow()
+
+    private val _taskUpdated = Channel<Unit>(Channel.BUFFERED)
+    val taskUpdated = _taskUpdated.receiveAsFlow()
 
     init {
         observeTodayTasks()
@@ -69,6 +71,17 @@ class TodoViewModel(
                 _uiState.update { it.copy(isInputError = true) }
             } finally {
                 _uiState.update { it.copy(isLoading = false) }
+            }
+        }
+    }
+
+    fun onUpdateTask(todo: Todo) {
+        viewModelScope.launch {
+            try {
+                repository.updateTask(todo)
+                _taskUpdated.send(Unit)
+            } catch (e: Exception) {
+                // Sheet stays open on failure; user can retry.
             }
         }
     }

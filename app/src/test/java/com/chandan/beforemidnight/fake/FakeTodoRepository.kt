@@ -35,5 +35,13 @@ class FakeTodoRepository : TodoRepository {
         }
     }
 
+    override suspend fun updateTask(todo: Todo) {
+        val idx = tasks.indexOfFirst { it.id == todo.id }
+        if (idx != -1) {
+            tasks[idx] = todo
+            _flow.value = tasks.toList()
+        }
+    }
+
     fun allTasks(): List<Todo> = tasks.toList()
 }

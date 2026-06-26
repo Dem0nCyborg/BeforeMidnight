@@ -1,5 +1,6 @@
 package com.chandan.beforemidnight.ui.todo
 
+import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -9,13 +10,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material3.Button
@@ -28,9 +32,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
+import androidx.compose.material3.TimePicker
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.rememberModalBottomSheetState
+import androidx.compose.material3.rememberTimePickerState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -47,6 +54,9 @@ import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import com.chandan.beforemidnight.domain.model.Todo
 import kotlinx.coroutines.flow.Flow
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -54,21 +64,25 @@ import java.time.format.DateTimeFormatter
 fun TodoScreen(
     uiState: TodoUiState,
     taskAdded: Flow<Unit>,
+    taskUpdated: Flow<Unit>,
     onInputChange: (String) -> Unit,
     onAddTask: () -> Unit,
     onToggle: (Todo) -> Unit,
+    onUpdateTask: (Todo) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-
-
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
-    val sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    var editingTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
+    val editingTask: Todo? = editingTaskId?.let { id -> uiState.tasks.find { it.id == id } }
+    val addSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val dateFormatter = remember { DateTimeFormatter.ofPattern("EEEE, MMMM d") }
 
     LaunchedEffect(Unit) {
-        taskAdded.collect {
-            showAddSheet = false
-        }
+        taskAdded.collect { showAddSheet = false }
+    }
+
+    LaunchedEffect(Unit) {
+        taskUpdated.collect { editingTaskId = null }
     }
 
     Scaffold(
@@ -102,7 +116,12 @@ fun TodoScreen(
                     contentPadding = PaddingValues(vertical = 8.dp),
                 ) {
                     items(uiState.tasks, key = { it.id }) { todo ->
-                        TodoItem(todo = todo, onToggle = { onToggle(todo) })
+                        TodoItem(
+                            todo = todo,
+                            nowMillis = uiState.nowMillis,
+                            onToggle = { onToggle(todo) },
+                            onEdit = { editingTaskId = todo.id },
+                        )
                         HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
                     }
                 }
@@ -116,7 +135,7 @@ fun TodoScreen(
                 showAddSheet = false
                 onInputChange("")
             },
-            sheetState = sheetState,
+            sheetState = addSheetState,
         ) {
             AddTaskSheetContent(
                 inputText = uiState.inputText,
@@ -127,34 +146,52 @@ fun TodoScreen(
             )
         }
     }
+
+    if (editingTask != null) {
+        ModalBottomSheet(
+            onDismissRequest = { editingTaskId = null },
+            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+        ) {
+            EditTaskSheetContent(
+                todo = editingTask,
+                currentDate = uiState.currentDate,
+                onUpdateTask = onUpdateTask,
+            )
+        }
+    }
 }
 
 @Composable
 private fun TodoItem(
     todo: Todo,
+    nowMillis: Long,
     onToggle: () -> Unit,
+    onEdit: () -> Unit,
 ) {
+    val isExpired = todo.expiresAt != null && todo.expiresAt <= nowMillis
+    val textColor = when {
+        isExpired -> MaterialTheme.colorScheme.onSurface.copy(alpha = 0.38f)
+        todo.isCompleted -> MaterialTheme.colorScheme.onSurfaceVariant
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onToggle)
+            .clickable(onClick = onEdit)
             .padding(horizontal = 16.dp, vertical = 4.dp),
         verticalAlignment = Alignment.CenterVertically,
     ) {
         Checkbox(
             checked = todo.isCompleted,
-            onCheckedChange = { onToggle() },
+            onCheckedChange = if (isExpired) null else { _ -> onToggle() },
         )
         Spacer(modifier = Modifier.width(8.dp))
         Text(
             text = todo.title,
             style = MaterialTheme.typography.bodyLarge,
             textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
-            color = if (todo.isCompleted) {
-                MaterialTheme.colorScheme.onSurfaceVariant
-            } else {
-                MaterialTheme.colorScheme.onSurface
-            },
+            color = textColor,
         )
     }
 }
@@ -226,6 +263,101 @@ private fun AddTaskSheetContent(
             modifier = Modifier.fillMaxWidth(),
         ) {
             Text("Add task")
+        }
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun EditTaskSheetContent(
+    todo: Todo,
+    currentDate: LocalDate,
+    onUpdateTask: (Todo) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    var editTitle by remember(todo.id) { mutableStateOf(todo.title) }
+    var hasExpiration by remember(todo.id) { mutableStateOf(todo.expiresAt != null) }
+
+    val (initHour, initMinute) = remember(todo.id) {
+        todo.expiresAt?.let { millis ->
+            val t = Instant.ofEpochMilli(millis).atZone(ZoneId.systemDefault()).toLocalTime()
+            t.hour to t.minute
+        } ?: (23 to 59)
+    }
+    val timePickerState = rememberTimePickerState(
+        initialHour = initHour,
+        initialMinute = initMinute,
+    )
+
+    val isSaveEnabled = editTitle.trim().isNotBlank() && editTitle.length <= 200
+
+    Column(
+        modifier = modifier
+            .fillMaxWidth()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp)
+            .padding(bottom = 32.dp),
+        verticalArrangement = Arrangement.spacedBy(12.dp),
+    ) {
+        Text(
+            text = "Edit task",
+            style = MaterialTheme.typography.titleMedium,
+        )
+        OutlinedTextField(
+            value = editTitle,
+            onValueChange = { editTitle = it },
+            modifier = Modifier.fillMaxWidth(),
+            label = { Text("Task title") },
+            supportingText = {
+                Text(
+                    text = "${editTitle.length}/200",
+                    modifier = Modifier.fillMaxWidth(),
+                    textAlign = TextAlign.End,
+                )
+            },
+            singleLine = true,
+            keyboardOptions = KeyboardOptions(
+                capitalization = KeyboardCapitalization.Sentences,
+                imeAction = ImeAction.Done,
+            ),
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Text(
+                text = "Set expiration",
+                style = MaterialTheme.typography.bodyLarge,
+                modifier = Modifier.weight(1f),
+            )
+            Switch(
+                checked = hasExpiration,
+                onCheckedChange = { hasExpiration = it },
+            )
+        }
+        AnimatedVisibility(visible = hasExpiration) {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Spacer(modifier = Modifier.height(4.dp))
+                TimePicker(state = timePickerState)
+            }
+        }
+        Button(
+            onClick = {
+                val expiresAt = if (hasExpiration) {
+                    currentDate
+                        .atTime(timePickerState.hour, timePickerState.minute)
+                        .atZone(ZoneId.systemDefault())
+                        .toInstant()
+                        .toEpochMilli()
+                } else {
+                    null
+                }
+                onUpdateTask(todo.copy(title = editTitle.trim(), expiresAt = expiresAt))
+            },
+            enabled = isSaveEnabled,
+            modifier = Modifier.fillMaxWidth(),
+        ) {
+            Text("Save")
         }
     }
 }
