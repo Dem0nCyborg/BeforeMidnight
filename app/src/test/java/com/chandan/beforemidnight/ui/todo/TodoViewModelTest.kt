@@ -8,6 +8,7 @@ import com.chandan.beforemidnight.util.MainDispatcherRule
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.test.TestScope
+import kotlinx.coroutines.test.advanceTimeBy
 import kotlinx.coroutines.test.runTest
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
@@ -148,5 +149,22 @@ class TodoViewModelTest {
         vm.onAddTask()
 
         assertFalse(vm.uiState.value.isLoading)
+    }
+
+    // --- Expiration ticker ---
+
+    @Test
+    fun `nowMillis is initialised from dateProvider on start`() = runViewModelTest {
+        assertEquals(dateProvider.nowMillis(), vm.uiState.value.nowMillis)
+    }
+
+    @Test
+    fun `ticker updates nowMillis after 60 seconds`() = runViewModelTest {
+        val laterMillis = dateProvider.nowMillisValue + 90_000L
+        dateProvider.nowMillisValue = laterMillis
+
+        advanceTimeBy(60_001L)
+
+        assertEquals(laterMillis, vm.uiState.value.nowMillis)
     }
 }

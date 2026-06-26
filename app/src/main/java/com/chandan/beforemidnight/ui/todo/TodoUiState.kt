@@ -9,4 +9,5 @@ data class TodoUiState(
     val isInputError: Boolean = false,
     val isLoading: Boolean = false,
     val currentDate: LocalDate = LocalDate.now(),
+    val nowMillis: Long = 0L,
 )

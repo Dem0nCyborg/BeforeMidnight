@@ -26,7 +26,9 @@ class TodoViewModel(
     private val dateProvider: DateProvider,
 ) : ViewModel() {
 
-    private val _uiState = MutableStateFlow(TodoUiState(currentDate = dateProvider.today()))
+    private val _uiState = MutableStateFlow(
+        TodoUiState(currentDate = dateProvider.today(), nowMillis = dateProvider.nowMillis())
+    )
     val uiState: StateFlow<TodoUiState> = _uiState.asStateFlow()
 
     private var taskObserverJob: Job? = null
@@ -38,6 +40,7 @@ class TodoViewModel(
     init {
         observeTodayTasks()
         scheduleMidnightReset()
+        startExpirationTicker()
     }
 
     // Called by the UI on every ON_RESUME. Refreshes the task list if the date has
@@ -83,6 +86,15 @@ class TodoViewModel(
                 .collect { tasks ->
                     _uiState.update { it.copy(tasks = tasks, currentDate = dateProvider.today()) }
                 }
+        }
+    }
+
+    private fun startExpirationTicker() {
+        viewModelScope.launch {
+            while (true) {
+                delay(60_000L)
+                _uiState.update { it.copy(nowMillis = dateProvider.nowMillis()) }
+            }
         }
     }
 
