@@ -32,6 +32,7 @@ class TodoViewModel(
     val uiState: StateFlow<TodoUiState> = _uiState.asStateFlow()
 
     private var taskObserverJob: Job? = null
+    private var expiredTasksJob: Job? = null
 
     private val _taskAdded = Channel<Unit>(Channel.BUFFERED)
     val taskAdded = _taskAdded.receiveAsFlow()
@@ -40,7 +41,7 @@ class TodoViewModel(
     val taskUpdated = _taskUpdated.receiveAsFlow()
 
     init {
-        observeTodayTasks()
+        refreshObservers()
         scheduleMidnightReset()
         startExpirationTicker()
     }
@@ -50,7 +51,7 @@ class TodoViewModel(
     // holding a Lifecycle reference.
     fun onResume() {
         if (dateProvider.today() != _uiState.value.currentDate) {
-            observeTodayTasks()
+            refreshObservers()
         }
     }
 
@@ -92,12 +93,27 @@ class TodoViewModel(
         }
     }
 
+    private fun refreshObservers() {
+        observeTodayTasks()
+        observeExpiredTasks()
+    }
+
     private fun observeTodayTasks() {
         taskObserverJob?.cancel()
         taskObserverJob = viewModelScope.launch {
             repository.getTasksForDay(dateProvider.today())
                 .collect { tasks ->
                     _uiState.update { it.copy(tasks = tasks, currentDate = dateProvider.today()) }
+                }
+        }
+    }
+
+    private fun observeExpiredTasks() {
+        expiredTasksJob?.cancel()
+        expiredTasksJob = viewModelScope.launch {
+            repository.getTasksBeforeDay(dateProvider.today())
+                .collect { tasks ->
+                    _uiState.update { it.copy(expiredTasks = tasks) }
                 }
         }
     }
@@ -117,7 +133,7 @@ class TodoViewModel(
                 val now = LocalDateTime.now()
                 val nextMidnight = now.toLocalDate().plusDays(1).atStartOfDay()
                 delay(ChronoUnit.MILLIS.between(now, nextMidnight))
-                observeTodayTasks()
+                refreshObservers()
             }
         }
     }

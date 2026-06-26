@@ -5,6 +5,7 @@ import java.time.LocalDate
 
 data class TodoUiState(
     val tasks: List<Todo> = emptyList(),
+    val expiredTasks: List<Todo> = emptyList(),
     val inputText: String = "",
     val isInputError: Boolean = false,
     val isLoading: Boolean = false,

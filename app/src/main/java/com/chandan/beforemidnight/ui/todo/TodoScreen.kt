@@ -22,16 +22,20 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.Close
+import androidx.compose.material.icons.filled.DateRange
 import androidx.compose.material3.Button
 import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TimePicker
@@ -58,6 +62,7 @@ import java.time.Instant
 import java.time.LocalDate
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -72,6 +77,7 @@ fun TodoScreen(
     modifier: Modifier = Modifier,
 ) {
     var showAddSheet by rememberSaveable { mutableStateOf(false) }
+    var showHistory by rememberSaveable { mutableStateOf(false) }
     var editingTaskId by rememberSaveable { mutableStateOf<Long?>(null) }
     val editingTask: Todo? = editingTaskId?.let { id -> uiState.tasks.find { it.id == id } }
     val addSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -91,38 +97,57 @@ fun TodoScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = uiState.currentDate.format(dateFormatter),
+                        text = if (showHistory) "History" else uiState.currentDate.format(dateFormatter),
                         style = MaterialTheme.typography.titleLarge,
                     )
+                },
+                actions = {
+                    IconButton(onClick = { showHistory = !showHistory }) {
+                        Icon(
+                            imageVector = if (showHistory) Icons.Default.Close else Icons.Default.DateRange,
+                            contentDescription = if (showHistory) "Back to today" else "View history",
+                        )
+                    }
                 },
             )
         },
         floatingActionButton = {
-            FloatingActionButton(onClick = { showAddSheet = true }) {
-                Icon(imageVector = Icons.Default.Add, contentDescription = "Add task")
+            if (!showHistory) {
+                FloatingActionButton(onClick = { showAddSheet = true }) {
+                    Icon(imageVector = Icons.Default.Add, contentDescription = "Add task")
+                }
             }
         },
     ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding),
-        ) {
-            if (uiState.tasks.isEmpty()) {
-                EmptyState(modifier = Modifier.align(Alignment.Center))
-            } else {
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(vertical = 8.dp),
-                ) {
-                    items(uiState.tasks, key = { it.id }) { todo ->
-                        TodoItem(
-                            todo = todo,
-                            nowMillis = uiState.nowMillis,
-                            onToggle = { onToggle(todo) },
-                            onEdit = { editingTaskId = todo.id },
-                        )
-                        HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+        if (showHistory) {
+            HistoryContent(
+                expiredTasks = uiState.expiredTasks,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            )
+        } else {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding),
+            ) {
+                if (uiState.tasks.isEmpty()) {
+                    EmptyState(modifier = Modifier.align(Alignment.Center))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(vertical = 8.dp),
+                    ) {
+                        items(uiState.tasks, key = { it.id }) { todo ->
+                            TodoItem(
+                                todo = todo,
+                                nowMillis = uiState.nowMillis,
+                                onToggle = { onToggle(todo) },
+                                onEdit = { editingTaskId = todo.id },
+                            )
+                            HorizontalDivider(modifier = Modifier.padding(start = 56.dp))
+                        }
                     }
                 }
             }
@@ -160,6 +185,8 @@ fun TodoScreen(
         }
     }
 }
+
+// ----- Today view -----
 
 @Composable
 private fun TodoItem(
@@ -216,6 +243,105 @@ private fun EmptyState(modifier: Modifier = Modifier) {
     }
 }
 
+// ----- History view -----
+
+@Composable
+private fun HistoryContent(
+    expiredTasks: List<Todo>,
+    modifier: Modifier = Modifier,
+) {
+    if (expiredTasks.isEmpty()) {
+        Box(modifier = modifier, contentAlignment = Alignment.Center) {
+            Column(
+                modifier = Modifier.padding(32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(8.dp),
+            ) {
+                Text(
+                    text = "No past tasks yet",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+                Text(
+                    text = "Completed days will appear here",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                )
+            }
+        }
+    } else {
+        // groupBy preserves insertion order (LinkedHashMap); DAO orders DESC by date so
+        // most-recent past day is at the top of the logbook.
+        val grouped = remember(expiredTasks) { expiredTasks.groupBy { it.createdDate } }
+        LazyColumn(
+            modifier = modifier,
+            contentPadding = PaddingValues(bottom = 16.dp),
+        ) {
+            grouped.forEach { (date, tasks) ->
+                stickyHeader(key = "header_$date") {
+                    DateSectionHeader(date = date)
+                }
+                items(tasks, key = { it.id }) { todo ->
+                    HistoryItem(todo = todo)
+                    HorizontalDivider(modifier = Modifier.padding(start = 16.dp))
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DateSectionHeader(date: LocalDate) {
+    val formatter = remember { DateTimeFormatter.ofPattern("EEEE, MMMM d") }
+    // Surface gives the header an opaque background so scrolling items don't bleed through.
+    Surface(color = MaterialTheme.colorScheme.surfaceVariant) {
+        Text(
+            text = date.format(formatter),
+            style = MaterialTheme.typography.labelLarge,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+        )
+    }
+}
+
+@Composable
+private fun HistoryItem(todo: Todo) {
+    val expiryLabel = remember(todo.expiresAt) {
+        todo.expiresAt?.let { millis ->
+            val time = Instant.ofEpochMilli(millis)
+                .atZone(ZoneId.systemDefault())
+                .toLocalTime()
+            "Expired ${time.format(DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT))}"
+        }
+    }
+
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
+    ) {
+        Text(
+            text = todo.title,
+            style = MaterialTheme.typography.bodyLarge,
+            textDecoration = if (todo.isCompleted) TextDecoration.LineThrough else null,
+            color = if (todo.isCompleted) MaterialTheme.colorScheme.onSurfaceVariant
+                    else MaterialTheme.colorScheme.onSurface,
+        )
+        if (expiryLabel != null) {
+            Text(
+                text = expiryLabel,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        }
+    }
+}
+
+// ----- Add sheet -----
+
 @Composable
 private fun AddTaskSheetContent(
     inputText: String,
@@ -266,6 +392,8 @@ private fun AddTaskSheetContent(
         }
     }
 }
+
+// ----- Edit sheet -----
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
