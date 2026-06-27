@@ -17,6 +17,8 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import java.time.LocalDate
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.test.UnconfinedTestDispatcher
 
 @OptIn(ExperimentalCoroutinesApi::class)
 class TodoViewModelTest {
@@ -167,4 +169,58 @@ class TodoViewModelTest {
 
         assertEquals(laterMillis, vm.uiState.value.nowMillis)
     }
+
+    // --- UI Events (Channels) ---
+
+    @Test
+    fun `onAddTask success emits to taskAdded channel`() = runViewModelTest {
+        var emitted = false
+        val job = backgroundScope.launch(UnconfinedTestDispatcher()) {
+            vm.taskAdded.collect { emitted = true }
+        }
+
+        vm.onInputChange("Buy milk")
+        vm.onAddTask()
+
+        assertTrue(emitted)
+        job.cancel()
+    }
+
+    @Test
+    fun `onUpdateTask updates repository and emits to taskUpdated channel`() = runViewModelTest {
+        repo.addTask("Old Task", day1)
+        val task = vm.uiState.value.tasks.single()
+        val updatedTask = task.copy(title = "New Task Title")
+
+        var emitted = false
+        val job = backgroundScope.launch(UnconfinedTestDispatcher()) {
+            vm.taskUpdated.collect { emitted = true }
+        }
+
+        vm.onUpdateTask(updatedTask)
+
+        assertTrue(emitted)
+        assertEquals("New Task Title", vm.uiState.value.tasks.single().title)
+        job.cancel()
+    }
+
+    // --- History / Expired Tasks ---
+
+    @Test
+    fun `expiredTasks is populated with past tasks on day rollover`() = runViewModelTest {
+        // 1. Add a task on Day 1
+        repo.addTask("Day 1 Task", day1)
+        assertEquals(1, vm.uiState.value.tasks.size)
+        assertEquals(0, vm.uiState.value.expiredTasks.size)
+
+        // 2. Advance clock to Day 2 and simulate app resume
+        dateProvider.currentDate = day2
+        vm.onResume()
+
+        // 3. Verify the task moved from the Today list to the History list
+        assertEquals(0, vm.uiState.value.tasks.size)
+        assertEquals(1, vm.uiState.value.expiredTasks.size)
+        assertEquals("Day 1 Task", vm.uiState.value.expiredTasks.single().title)
+    }
+
 }
