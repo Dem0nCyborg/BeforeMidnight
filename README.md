@@ -5,7 +5,7 @@
 ---
 
 ## Contents
-- [Demo](media/demo.mp4)
+- [Demo](#demo)
 - [Approach](#approach)
 - [Requirement Compliance](#requirement-compliance)
 - [Features](#features)
@@ -17,11 +17,11 @@
 
 ---
 
----
-
 ## Demo
 
-[Video walkthrough](VIDEO_LINK_HERE) · [Try it in the browser](https://appetize.io/app/b_h5hbvu2buercqgyjlfyyn5vn54)
+https://github.com/user-attachments/assets/1be31547-5ab7-4437-a26f-703ceec54f8d
+
+[Try it in the browser](https://appetize.io/app/b_h5hbvu2buercqgyjlfyyn5vn54)
 
 ---
 
@@ -44,30 +44,18 @@ Started by understanding the doc and then moved to ideation. Finalised all the f
 | Automatic day reset | 3 paths: cold start (ViewModel init), `onResume()` via `LifecycleResumeEffect`, `scheduleMidnightReset()` while+delay loop |
 
 ---
+
 ## Features
 
-**Core**
-- Add tasks via Material 3 Modal Bottom Sheet
-- Tap a task to edit title or set/clear expiration time
-- Checkbox completion with strikethrough and greyed text
-- Character counter on input (n/200)
-- Empty state when no tasks exist for the day
-
-**Day Management**
-- Automatic midnight reset — 3 paths: cold start, onResume, background timer
-- Date header showing current day
-- Expiration time per task — expired tasks grey out and disable, never disappear
-- History view — previous days' tasks grouped by date, read-only
-
-**Polish**
-- Completion animation
-- Haptic feedback on checkbox toggle, add, and save
-- Material 3 dynamic color (API 31+) with fallback palette
-- Light / dark mode via system setting
-
-**Testing**
-- 14 unit tests covering AddTaskUseCase, day reset logic, and ViewModel state
-- FakeDateProvider for time-travel in tests without mocking frameworks
+| Area | What's built |
+|---|---|
+| Tasks | Add, tap-to-edit, checkbox complete, expiration time per task |
+| Today view | Date header, character counter (n/200), empty state |
+| Day reset | 3 paths: cold start, onResume, background midnight timer |
+| Expired tasks | Grey out + disable when expiresAt passes — never disappear |
+| History view | Previous days grouped by date, read-only |
+| Polish | Completion animation, haptic feedback, dynamic color (API 31+), light/dark mode, app icon |
+| Testing | 14 unit tests — core logic, UI event channels, day-rollover, FakeDateProvider for time-travel |
 
 ---
 
@@ -103,16 +91,6 @@ Kotlin 2.2.10 · Jetpack Compose · Material 3 · Room 2.7.1 · Coroutines + Sta
 
 ---
 
-## What I'd Improve With More Time
-
-- **Priority tags** — let users mark tasks as High / Medium / Low priority on creation or edit. Today screen would surface high-priority tasks at the top regardless of creation order.
-
-- **AI task assistant** — an in-app assistant that summarizes what's left for the day and suggests task titles or descriptions based on partial input.
-
-- **Deadline color grading** — tasks shift color as they approach their expiration time (or end of day if no expiration is set).
-
----
-
 ## What I Got Stuck On
 
 **1. KSP version mismatch** — initial Gradle sync failed because KSP `2.2.10-1.0.29` didn't exist on Maven Central. Instead of guessing, queried Maven Central's KSP metadata XML directly to find the correct published version for Kotlin 2.2.10: `2.2.10-2.0.2`. Confirmed KSP's `<kotlin>-<ksp>` versioning scheme.
@@ -126,5 +104,17 @@ Kotlin 2.2.10 · Jetpack Compose · Material 3 · Room 2.7.1 · Coroutines + Sta
 **5. Success-only sheet close** — the naive fix (`showSheet = false` on every button click) closes the sheet even on validation errors, hiding the error message. Correct solution: ViewModel sends a one-shot `Channel` event only on `AddTaskUseCase` success; UI collects it in `LaunchedEffect` and closes the sheet. Keeps validation logic in exactly one place.
 
 ---
+
+## What I'd Improve With More Time
+
+- **Priority tags** — let users mark tasks as High / Medium / Low priority on creation or edit. Today screen would surface high-priority tasks at the top regardless of creation order.
+
+- **AI task assistant** — an in-app assistant that summarizes what's left for the day and suggests task titles or descriptions based on partial input.
+
+- **Deadline color grading** — tasks shift color as they approach their expiration time (or end of day if no expiration is set).
+
+---
+
+## AI Usage
 
 See [`summary.md`](summary.md) for a curated index of key decisions, pushback moments, and manual changes. Full transcript in [`AI_TRANSCRIPT_1.md`](AI_TRANSCRIPT_1.md) and [`AI_TRANSCRIPT_2.md`](AI_TRANSCRIPT_2.md).
