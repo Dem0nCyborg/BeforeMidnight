@@ -17,11 +17,14 @@
 
 ---
 
+[![Try it in the browser](https://img.shields.io/badge/Try%20it%20live-4CAF50?style=for-the-badge&logo=android&logoColor=white)](https://appetize.io/app/b_h5hbvu2buercqgyjlfyyn5vn54)
+
+> **Or watch the demo below ↓**
+
+---
 ## Demo
 
 https://github.com/user-attachments/assets/1be31547-5ab7-4437-a26f-703ceec54f8d
-
-[Try it in the browser](https://appetize.io/app/b_h5hbvu2buercqgyjlfyyn5vn54)
 
 ---
 
